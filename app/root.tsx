@@ -17,6 +17,8 @@ import favicon from '../public/favicon.svg';
 import {Layout} from './components/Layout';
 import {Seo} from '@shopify/hydrogen';
 import {ShopifyProvider} from '@shopify/hydrogen-react';
+import {defer} from '@shopify/remix-oxygen';
+import {CART_QUERY} from '~/queries/cart';
 
 const shopifyConfig: any = {
   storefrontToken: '3b580e70970c4528da70c98e097c2fa0',
@@ -46,10 +48,31 @@ export const meta: MetaFunction = () => ({
   viewport: 'width=device-width,initial-scale=1',
 });
 
-export async function loader({context}: LoaderArgs) {
-  const layout = await context.storefront.query<{shop: Shop}>(LAYOUT_QUERY);
-  return {layout};
+export async function loader({context, request}: any) {
+  const cartId = await context.session.get('cartId');
+  return defer({
+    cart: cartId ? getCart(context, cartId) : undefined,
+    layout: await context.storefront.query(LAYOUT_QUERY),
+  });
 }
+
+async function getCart({storefront}: any, cartId: any) {
+  if (!storefront) {
+    throw new Error('missing storefront client in cart query');
+  }
+
+  const {cart} = await storefront.query(CART_QUERY, {
+    variables: {
+      cartId,
+      country: storefront.i18n.country,
+      language: storefront.i18n.language,
+    },
+    cache: storefront.CacheNone(),
+  });
+
+  return cart;
+}
+
 
 export default function App() {
   const data = useLoaderData();
